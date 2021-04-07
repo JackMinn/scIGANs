@@ -191,6 +191,9 @@ class Generator(nn.Module):
 # scores the image on how real it thinks it is. In this case, perhaps given an input image and a label, the output image is how "convinced" the 
 # discriminator is by each pixel in the image when considering the label in question. If its more convinced by the pixels (genes) in the real image 
 # for a given cell label then the generator will strive to produce more convincing pixels (genes) for the target cell, which is how the loss function operates. 
+
+# The discriminator here can be considered as an auto-encoder function, and the generator model can be considered a decoder function which takes codes from the
+# latent space to produce an output (so we have a decoder that is used as a generative model). 
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
