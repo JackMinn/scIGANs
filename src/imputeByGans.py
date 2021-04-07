@@ -393,7 +393,11 @@ if opt.train:
     
             # Loss measures generator's ability to fool the discriminator
             # is the discriminator modifying the images based on how much it thinks the images are fake?
-            g_loss = torch.mean(torch.abs(discriminator(gen_imgs,label_oh) - gen_imgs))
+            g_loss = torch.mean(torch.abs(discriminator(gen_imgs,label_oh) - gen_imgs)) # BEGAN objective function from paper given by L_G
+            
+            # L_G is given as the norm of (Generator output - Discriminator(Generator Output))
+            # In this case the Discriminator is an auto-encoder that maps from R^(N_x) to R^(N_x), where R^(N_x) is the dimension of the 
+            # sample space (number of pixels/genes in an image/cell)
     
             g_loss.backward()
             optimizer_G.step()
@@ -412,7 +416,7 @@ if opt.train:
             d_loss_real = torch.mean(torch.abs(d_real - real_imgs))
             # the bigger d_loss_fake is, the smaller the loss, so the more the image is edited the more the discriminator classifies it as fake and is "succeeding"
             d_loss_fake = torch.mean(torch.abs(d_fake - gen_imgs.detach())) 
-            d_loss = d_loss_real - k * d_loss_fake
+            d_loss = d_loss_real - k * d_loss_fake # Given by L_D in the paper from the BEGAN objective function
     
             d_loss.backward()
             optimizer_D.step()
