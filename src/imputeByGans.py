@@ -135,8 +135,8 @@ class Generator(nn.Module):
 
         self.init_size = opt.img_size // 4
         self.cn1=32
-        self.l1 = nn.Sequential(nn.Linear(opt.latent_dim, self.cn1*(self.init_size**2)))
-        self.l1p = nn.Sequential(nn.Linear(opt.latent_dim, self.cn1*(opt.img_size**2)))
+        self.l1 = nn.Sequential(nn.Linear(opt.latent_dim, self.cn1*(self.init_size**2))) # this is not actually used 
+        self.l1p = nn.Sequential(nn.Linear(opt.latent_dim, self.cn1*(opt.img_size**2))) # 32 x size x size
 
 
         
