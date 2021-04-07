@@ -182,11 +182,15 @@ class Generator(nn.Module):
         
        
         out1=torch.cat((out01,out02),1)
-        out1=self.conv_blocks_1(out1) # this block operates on 40 channels and collapses them to 1 channel, returning a single image!
+        out1=self.conv_blocks_1(out1) # this block operates on 40 channels and collapses them to 1 channel, returning a single image of img_w x img_h
         return out1
         
 
-
+# Wasserstein GANs have their objective function as a function of the discriminators output from the real input and the fake input
+# This is because the discriminator is a critic when using Wasserstein loss. Thus it doesnt state whether an image is fake or real, but rather
+# scores the image on how real it thinks it is. In this case, perhaps given an input image and a label, the output image is how "convinced" the 
+# discriminator is by each pixel in the image when considering the label in question. If its more convinced by the pixels (genes) in the real image 
+# for a given cell label then the generator will strive to produce more convincing pixels (genes) for the target cell, which is how the loss function operates. 
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
@@ -262,6 +266,8 @@ class Discriminator(nn.Module):
             nn.Sigmoid(),
         )
 
+    #what is happening here? we get an image and a label and what do we output?
+    # why does the generator produce an image?
     def forward(self, img,label_oh):
         
         out00 = self.pre(img.view((img.size()[0],-1))).view((img.size()[0],1,self.down_size0,self.down_size0))
@@ -274,8 +280,8 @@ class Discriminator(nn.Module):
         out1=torch.cat((out01,out02),1)        
 ######        
         out = self.fc(out1.view(out1.size(0), -1))
-        out = self.up(out.view(out.size(0), 24, self.down_size, self.down_size))
-        return out
+        out = self.up(out.view(out.size(0), 24, self.down_size, self.down_size)) # batch size x 24 channels x 32 x 32 always....
+        return out  # the output here must match the dimensions of the generator output, they match in the paper, but I dont know why we have 24 dimensions here?
 
        
 #%%
@@ -386,6 +392,7 @@ if opt.train:
             gen_imgs = generator(z,label_oh)
     
             # Loss measures generator's ability to fool the discriminator
+            # is the discriminator modifying the images based on how much it thinks the images are fake?
             g_loss = torch.mean(torch.abs(discriminator(gen_imgs,label_oh) - gen_imgs))
     
             g_loss.backward()
@@ -400,9 +407,11 @@ if opt.train:
             # Measure discriminator's ability to classify real from generated samples
             d_real = discriminator(real_imgs,label_oh)
             d_fake = discriminator(gen_imgs.detach(),label_oh)
-    
+            
+            # ideally d_loss_real is 0 as the discriminator identifies this image as real and doesnt modify it much
             d_loss_real = torch.mean(torch.abs(d_real - real_imgs))
-            d_loss_fake = torch.mean(torch.abs(d_fake - gen_imgs.detach()))
+            # the bigger d_loss_fake is, the smaller the loss, so the more the image is edited the more the discriminator classifies it as fake and is "succeeding"
+            d_loss_fake = torch.mean(torch.abs(d_fake - gen_imgs.detach())) 
             d_loss = d_loss_real - k * d_loss_fake
     
             d_loss.backward()
