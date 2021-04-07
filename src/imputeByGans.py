@@ -136,24 +136,27 @@ class Generator(nn.Module):
         self.init_size = opt.img_size // 4
         self.cn1=32
         self.l1 = nn.Sequential(nn.Linear(opt.latent_dim, self.cn1*(self.init_size**2))) # this is not actually used 
-        self.l1p = nn.Sequential(nn.Linear(opt.latent_dim, self.cn1*(opt.img_size**2))) # 32 x size x size
+        self.l1p = nn.Sequential(nn.Linear(opt.latent_dim, self.cn1*(opt.img_size**2))) # 32 x size x size, part of the transpose convolution they mention in the paper
 
 
-        
+        # this is applied to the result of self.l1p which results from the latent space sample, this is also part of the transpose convolution they mention
         self.conv_blocks_01p = nn.Sequential(
             nn.BatchNorm2d(self.cn1),
 #            nn.Upsample(scale_factor=2),
-            nn.Conv2d(self.cn1, self.cn1, 3, stride=1, padding=1),
-            nn.BatchNorm2d(self.cn1, 0.8),
+            nn.Conv2d(self.cn1, self.cn1, 3, stride=1, padding=1), # 32 channel in 32 channel out, kernel size of 3
+            nn.BatchNorm2d(self.cn1, 0.8), # first argument is number of channels 
             nn.ReLU(),            
         )
         
+        # together the above 2 operations describe GConv1_1 producing batch size x channels (32) x img_w x img_h
 
         
+        # this block is GConv1_2 in the paper, reduces channels from max_ncls to 8 (in this case), and upsamples the width and height (which was 1x1) to img_w x img_h
+        # its interesting because the result of upsampling must be very sparse, one_hot encoding means most values are just 0 - check this
         self.conv_blocks_02p = nn.Sequential(
 #            nn.BatchNorm2d(9),
-            nn.Upsample(scale_factor=opt.img_size),#torch.Size([bs, 128, 16, 16])
-            nn.Conv2d(max_ncls,  self.cn1//4, 3, stride=1, padding=1),#torch.Size([bs, 128, 16, 16])
+            nn.Upsample(scale_factor=opt.img_size),#torch.Size([bs, 128, 16, 16])  # this is spatial input of batch x channel x width x height, we upsample along width and height
+            nn.Conv2d(max_ncls,  self.cn1//4, 3, stride=1, padding=1),#torch.Size([bs, 128, 16, 16]) # I dont know what on earth these dimensions are that they wrote... this should just change channel size, aka go to 8 channels
             nn.BatchNorm2d( self.cn1//4),
             nn.ReLU(),           
         )
@@ -161,7 +164,7 @@ class Generator(nn.Module):
                 
         self.conv_blocks_1 = nn.Sequential(
             nn.BatchNorm2d(40, 0.8),
-            nn.Conv2d(40, self.cn1, 3, stride=1, padding=1),#torch.Size([bs, 1, 32, 32])
+            nn.Conv2d(40, self.cn1, 3, stride=1, padding=1),#torch.Size([bs, 1, 32, 32]) # this goes from 40 channels to 32 based on self.cn1, dont know why they say 1 channel...
             nn.BatchNorm2d(self.cn1),
             nn.ReLU(),
             nn.Conv2d(self.cn1, opt.channels, 3, stride=1, padding=1),#torch.Size([bs, 1, 32, 32])
@@ -170,15 +173,16 @@ class Generator(nn.Module):
     def forward(self, noise,label_oh):
         out = self.l1p(noise)        
         out = out.view(out.shape[0], self.cn1, opt.img_size, opt.img_size)
-        out01 = self.conv_blocks_01p(out) #([4, 32, 124, 124])
+        out01 = self.conv_blocks_01p(out) #([4, 32, 124, 124]) - this should actually be batch size x 32 channels x img_w x img_h
 #        
-        label_oh=label_oh.unsqueeze(2)
-        label_oh=label_oh.unsqueeze(2)  
-        out02 = self.conv_blocks_02p(label_oh) #([4, 8, 124, 124])
+        # one hot encoding starts with batch size dimension x max_ncls x 1?   
+        label_oh=label_oh.unsqueeze(2) # there is some 3rd dimension which we unsqueeze along to get a 4th dimension
+        label_oh=label_oh.unsqueeze(2) # does doing this a second time actually do something important? it might be needed to expand to 4 dimensions 
+        out02 = self.conv_blocks_02p(label_oh) #([4, 8, 124, 124]) - this should actually be batch size x 8 channels x img_w x img_h
         
        
         out1=torch.cat((out01,out02),1)
-        out1=self.conv_blocks_1(out1)
+        out1=self.conv_blocks_1(out1) # this block operates on 40 channels and collapses them to 1 channel, returning a single image!
         return out1
         
 
