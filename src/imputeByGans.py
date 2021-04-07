@@ -129,6 +129,7 @@ def weights_init_normal(m):
     elif classname.find('BatchNorm2d') != -1:
         torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
         torch.nn.init.constant_(m.bias.data, 0.0)
+        
 class Generator(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
@@ -188,12 +189,17 @@ class Generator(nn.Module):
 
 # Wasserstein GANs have their objective function as a function of the discriminators output from the real input and the fake input
 # This is because the discriminator is a critic when using Wasserstein loss. Thus it doesnt state whether an image is fake or real, but rather
-# scores the image on how real it thinks it is. In this case, perhaps given an input image and a label, the output image is how "convinced" the 
-# discriminator is by each pixel in the image when considering the label in question. If its more convinced by the pixels (genes) in the real image 
-# for a given cell label then the generator will strive to produce more convincing pixels (genes) for the target cell, which is how the loss function operates. 
+# scores the image on how real it thinks it is. Here we do not have a single score but rather an output tensor matching the input tensor from our discriminator. 
+# In this case, perhaps given an input image and a label, the output image is how "convinced" the 
+# discriminator is by each pixel in the image when considering the label in question. The more convinced by a pixel the smaller the value (0), and the less convinced
+# the larger the value. This is just an intuitive interpretation of the actual formal auto-encoder GAN concept.
 
 # The discriminator here can be considered as an auto-encoder function, and the generator model can be considered a decoder function which takes codes from the
 # latent space to produce an output (so we have a decoder that is used as a generative model). 
+
+# We want the discriminator to only perfectly match its output to the input if the input was a real sample. If the input was a fake sample we want the discriminator
+# to produce an output as far away from the input as possible. This is an approach where the loss is derived from the Wasserstein distance for training 
+# auto-encoder based GANs. 
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
@@ -206,7 +212,7 @@ class Discriminator(nn.Module):
             nn.Linear(opt.img_size**2,self.down_size0**2),
         )
 
-        # Upsampling
+        # Upsampling - I dont know why they comment here with upsampling, this looks like downsampling to me lol
         self.down = nn.Sequential(
             nn.Conv2d(opt.channels, self.cn1, 3, 1, 1),
             nn.MaxPool2d(2,2),
